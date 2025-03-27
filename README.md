@@ -1,26 +1,59 @@
 # HaloPSA Workflows MCP Server
 
-A Model Context Protocol (MCP) server that integrates with HaloPSA API to provide workflow management functionality. This server allows AI assistants and other MCP clients to interact with HaloPSA workflows through a standardized interface.
+A Model Context Protocol (MCP) server that integrates with HaloPSA API to provide workflow management functionality for Claude Desktop and other AI assistants.
 
 ## Features
 
+- Seamless integration with Claude Desktop
 - Authentication with HaloPSA API
 - Get workflow steps and details
-- Retrieve, create, and delete workflows
+- Create and manage workflows
 - Built with FastMCP for enhanced development experience
 - Comprehensive error handling and logging
-- Claude Desktop and other MCP client integration
 
 ## Installation
 
-```bash
-# Install from npm
-npm install halopsa-workflows-mcp
+### For Claude Desktop Users
 
-# Or clone the repository
+```bash
+# Install globally
+npm install -g halopsa-workflows-mcp
+```
+
+Configure Claude Desktop by editing your `claude_desktop_config.json` file:
+
+```json
+{
+  "mcpServers": {
+    "halopsa-workflow": {
+      "command": "halopsa-workflows-mcp",
+      "env": {
+        "HALOPSA_BASE_URL": "https://your-halopsa-instance.com/api",
+        "HALOPSA_CLIENT_ID": "your-client-id",
+        "HALOPSA_CLIENT_SECRET": "your-client-secret"
+      }
+    }
+  }
+}
+```
+
+See our [Claude Desktop Integration Guide](./docs/CLAUDE_DESKTOP.md) for detailed instructions.
+
+### For Developers
+
+```bash
+# Clone the repository
 git clone https://github.com/ssmanji89/halopsa-workflows-mcp.git
 cd halopsa-workflows-mcp
+
+# Install dependencies
 npm install
+
+# Build the project
+npm run build
+
+# Start the server
+npm start
 ```
 
 ## Configuration
@@ -34,19 +67,7 @@ HALOPSA_CLIENT_SECRET=your-client-secret
 LOG_LEVEL=info  # optional, values: error, warn, info, debug
 ```
 
-## Usage
-
-### Running the Server
-
-```bash
-# Build the TypeScript files
-npm run build
-
-# Start the server
-npm start
-```
-
-### Development Mode
+## Development Mode
 
 For development and testing, you can use the FastMCP CLI:
 
@@ -56,27 +77,9 @@ npm run dev
 
 # Run with MCP Inspector for interactive testing
 npm run inspect
-```
 
-## Integration with Claude Desktop
-
-To integrate with Claude Desktop, add the following configuration to your Claude Desktop settings (typically found at `~/Library/Application Support/Claude/claude_desktop_config.json`):
-
-```json
-{
-  "mcpServers": {
-    "halopsa-workflow": {
-      "command": "npm",
-      "args": ["start"],
-      "cwd": "/path/to/halopsa-workflows-mcp",
-      "env": {
-        "HALOPSA_BASE_URL": "https://your-halopsa-instance.com/api",
-        "HALOPSA_CLIENT_ID": "your-client-id",
-        "HALOPSA_CLIENT_SECRET": "your-client-secret"
-      }
-    }
-  }
-}
+# Test with dev environment
+npm run test:dev
 ```
 
 ## Available MCP Tools
@@ -88,13 +91,6 @@ Get a list of workflow steps from HaloPSA.
 Parameters:
 - `includecriteriainfo` (optional): Include criteria information in the workflow steps
 
-Example:
-```json
-{
-  "includecriteriainfo": true
-}
-```
-
 ### getWorkflows
 
 Get a list of workflows from HaloPSA.
@@ -103,32 +99,12 @@ Parameters:
 - `access_control_level` (optional): Access control level for filtering
 - `includeinactive` (optional): Whether to include inactive workflows
 
-Example:
-```json
-{
-  "includeinactive": true
-}
-```
-
 ### createWorkflows
 
 Create new workflows in HaloPSA.
 
 Parameters:
 - `workflows` (required): Array of workflow objects to create
-
-Example:
-```json
-{
-  "workflows": [
-    {
-      "name": "New Support Workflow",
-      "description": "Workflow for handling support tickets",
-      "active": true
-    }
-  ]
-}
-```
 
 ### getWorkflow
 
@@ -138,14 +114,6 @@ Parameters:
 - `id` (required): The workflow ID
 - `includedetails` (optional): Include workflow details in the response
 
-Example:
-```json
-{
-  "id": 123,
-  "includedetails": true
-}
-```
-
 ### deleteWorkflow
 
 Delete a workflow from HaloPSA by ID.
@@ -153,20 +121,16 @@ Delete a workflow from HaloPSA by ID.
 Parameters:
 - `id` (required): The workflow ID to delete
 
-Example:
-```json
-{
-  "id": 123
-}
-```
+For detailed tool parameters and usage examples, see the [Example Prompts](./docs/EXAMPLE_PROMPTS.md) documentation.
 
-## MCP Resources
+## For Claude Users
 
-### Server Information
+Not sure how to get started? Try asking Claude:
 
-URI: `info://server`
-
-Provides basic information about the server, including available tools and their purposes.
+- "Can you list all the workflows in my HaloPSA instance?"
+- "Get the details of a specific workflow by ID"
+- "Show me the steps for a specific workflow"
+- "Create a new workflow for handling client onboarding"
 
 ## Error Handling
 
@@ -180,10 +144,6 @@ Logging is controlled via the `LOG_LEVEL` environment variable:
 - `warn`: Log errors and warnings
 - `info`: Log errors, warnings, and informational messages (default)
 - `debug`: Log all messages including debug information
-
-## TypeScript Definitions
-
-The server includes TypeScript definitions for HaloPSA workflow objects, making it easier to work with the API responses in a typed environment.
 
 ## Contributing
 

@@ -1,9 +1,12 @@
 {
   "name": "halopsa-workflows-mcp",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "MCP Server for HaloPSA Workflow API integration using FastMCP",
   "main": "dist/index.js",
   "type": "module",
+  "bin": {
+    "halopsa-workflows-mcp": "./dist/cli.js"
+  },
   "scripts": {
     "build": "tsc",
     "start": "NODE_ENV=production node dist/index.js",
@@ -15,7 +18,8 @@
     "restart": "npm run build && npm run start",
     "monitor": "node scripts/monitor-health.js",
     "test:startup": "node test-startup.js",
-    "start:debug": "bash -x start.sh"
+    "start:debug": "bash -x start.sh",
+    "test:dev": "node scripts/test-dev-environment.js"
   },
   "keywords": [
     "halopsa",
@@ -49,7 +53,6 @@
     "axios": "^1.6.5",
     "dotenv": "^16.3.1",
     "fastmcp": "^1.20.5",
-    "halopsa-workflows-mcp": "^1.0.0",
     "zod": "^3.22.4"
   },
   "devDependencies": {
