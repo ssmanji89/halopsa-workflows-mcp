@@ -4,15 +4,18 @@ A TypeScript MCP server for interacting with HaloPSA Workflows API, updated with
 
 ## Architecture
 
-This implementation consists of two main components:
+This implementation consists of three main components:
 
 1. **Direct HaloPSA API Implementation** (`halopsa-direct.js`): A clean, focused implementation that handles authentication and API calls directly to the HaloPSA API.
 
-2. **MCP Wrapper** (`halopsa-mcp.js`): A thin wrapper around the direct implementation that provides the MCP interface for Claude Desktop and other AI assistants.
+2. **MCP Compatibility Layer** (`mcp-compatibility.js`): Ensures cross-compatibility between different MCP protocol implementations, including FastMCP, Azure MCP, and Browser-use MCP server.
+
+3. **MCP Wrapper** (`halopsa-mcp.js`): A thin wrapper around the direct implementation that provides the MCP interface for Claude Desktop and other AI assistants.
 
 ## Key Features
 
 - Reliable Claude Desktop integration with proper connection handling
+- Cross-compatible with multiple MCP protocol implementations
 - Tenant parameter for authentication
 - Proper scope parameter for API access
 - Case-sensitive API endpoint handling
@@ -118,6 +121,35 @@ For development, you can point to your local build:
 }
 ```
 
+## Cross-Compatibility Features
+
+This MCP server includes a compatibility layer that ensures seamless operation across different MCP implementations:
+
+- **Protocol Negotiation**: Automatically detects and adapts to different MCP protocol versions
+- **Transport Compatibility**: Works with both stdio and HTTP/SSE transport methods
+- **Error Handling**: Enhanced error handling with fallback mechanisms for compatibility issues
+- **Client Adaptation**: Adapts to different client initialization requirements
+
+For more details on compatibility, see the [COMPATIBILITY.md](COMPATIBILITY.md) file.
+
+## Testing
+
+Several test scripts are included to verify functionality and compatibility:
+
+```bash
+# Test direct API functionality
+npm run test
+
+# Test MCP client compatibility
+node test-fastmcp-client.js
+
+# Test standalone FastMCP compatibility
+node test-fastmcp.js
+
+# Run comprehensive compatibility tests
+node test-compatibility.js
+```
+
 ## Troubleshooting
 
 ### Common Issues
@@ -127,6 +159,8 @@ For development, you can point to your local build:
 2. **Authentication Failures**: Ensure your `HALOPSA_TENANT` is correctly set alongside the client ID and secret.
 
 3. **API Errors**: Check that your `HALOPSA_BASE_URL` does not include a trailing slash or "/api" suffix.
+
+4. **Compatibility Issues**: If you encounter protocol compatibility issues, check the debug logs for details. Try running the compatibility test script to identify specific issues.
 
 ### Debugging
 
@@ -143,14 +177,6 @@ Get-Content -Path "$env:APPDATA\Claude\Logs\mcp*.log" -Wait
 
 # Linux
 tail -f ~/.local/share/Claude/logs/mcp*.log
-```
-
-## Testing
-
-To test the direct API implementation:
-
-```bash
-npm run test
 ```
 
 ## Development
