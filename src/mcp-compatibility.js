@@ -42,27 +42,8 @@ export function createCompatibleMcpServer(config) {
   // Create server with standardized configuration
   const mcp = new FastMCP({
     name: serverConfig.name,
-    version: serverConfig.version,
-    authenticate: async (request) => {
-      // Custom authentication that works with all client types
-      try {
-        // Extract auth info from headers if available
-        const authHeader = request?.headers?.authorization;
-        if (authHeader) {
-          // Handle Bearer token authentication
-          if (authHeader.startsWith('Bearer ')) {
-            const token = authHeader.substring(7);
-            return { token, authenticated: true };
-          }
-        }
-        
-        // Default authentication for clients without headers
-        return { authenticated: true };
-      } catch (error) {
-        console.error(`Authentication error: ${error.message}`);
-        return { authenticated: false, error: error.message };
-      }
-    }
+    version: serverConfig.version
+    // Removed authenticate callback to avoid compatibility issues
   });
 
   // Add enhanced protocol capabilities
@@ -131,14 +112,30 @@ function enhanceErrorHandling(mcp) {
     
     // Handle session events with special care
     if (event === 'connect') {
-      const enhancedHandler = (session) => {
+      const enhancedHandler = (event) => {
         try {
-          // Normalize session object for compatibility
-          const normalizedSession = normalizeSession(session);
-          handler(normalizedSession);
+          // Fix session handling for compatibility
+          handler(event);
+          
+          // Send welcome message for debugging
+          if (event.session && event.session.requestSampling) {
+            try {
+              event.session.requestSampling({
+                role: 'tool',
+                content: [{ 
+                  type: 'text', 
+                  text: 'Connected to HaloPSA Workflows MCP Server' 
+                }]
+              }).catch(() => {
+                // Ignore errors from welcome message
+              });
+            } catch (error) {
+              // Ignore errors from welcome message
+            }
+          }
         } catch (error) {
           console.error(`Session connection error: ${error.message}`);
-          handler(session); // Fall back to original session
+          handler(event); // Fall back to original session
         }
       };
       return originalOnError.call(this, event, enhancedHandler);
@@ -146,23 +143,6 @@ function enhanceErrorHandling(mcp) {
     
     return originalOnError.call(this, event, handler);
   };
-}
-
-/**
- * Normalize session object for compatibility
- * @param {Object} session - Session object
- * @returns {Object} Normalized session
- */
-function normalizeSession(session) {
-  // Ensure session has expected properties
-  if (!session.session && session.server) {
-    session.session = {
-      server: session.server,
-      clientCapabilities: session.clientCapabilities || null
-    };
-  }
-  
-  return session;
 }
 
 /**
@@ -194,6 +174,11 @@ function enhanceError(error) {
  */
 export function createToolParameters(schema) {
   try {
+    // If schema is already a Zod schema, return it
+    if (schema instanceof z.ZodType) {
+      return schema;
+    }
+    
     // Convert JSON schema to Zod schema for FastMCP
     const zodSchema = convertToZodSchema(schema);
     return zodSchema;

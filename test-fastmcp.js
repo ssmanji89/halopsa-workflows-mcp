@@ -1,18 +1,18 @@
 #!/usr/bin/env node
 
 /**
- * Test script for HaloPSA Workflows MCP Server using FastMCP
- * This script uses the higher-level FastMCP client API to avoid protocol issues
+ * Test script for HaloPSA Workflows MCP Server using Client SDK
+ * This version uses the standard Client API directly for compatibility testing
  */
 
 import { exec } from 'child_process';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 
-// Function to run the test
+// Main test function
 async function runTest() {
   // Start the MCP server as a child process
-  console.log('Starting FastMCP client test...');
+  console.log('Starting server for FastMCP client test...');
   const server = exec('node dist/halopsa-mcp.js', {
     cwd: process.cwd(),
     env: {
@@ -54,19 +54,22 @@ async function runTest() {
     });
     
     // Create client with proper configuration
-    const client = new Client({
+    console.log('Creating client...');
+    const client = new Client();
+    
+    // Connect to the server
+    console.log('Connecting to server...');
+    await client.connect(transport);
+    
+    // Initialize client with capabilities
+    console.log('Initializing client...');
+    await client.initialize({
       clientInfo: {
-        name: 'FastMCP Test Client',
-        version: '1.0.0'
-      },
-      capabilities: {
-        models: ['claude-3-opus-20240229', 'claude-3-sonnet-20240229']
+        name: "FastMCP Test Client",
+        version: "1.0.0"
       }
     });
     
-    // Connect
-    console.log('Connecting to server...');
-    await client.connect(transport);
     console.log('Connected to server successfully');
     
     // Test listing tools
