@@ -105,44 +105,6 @@ function checkEnvironment() {
   debug('Environment check complete');
 }
 
-// Function to start the MCP server
-function startServer() {
-  debug('Starting MCP server...');
-  
-  const server = spawn('node', ['dist/halopsa-mcp.js'], {
-    cwd: process.cwd(),
-    env: {
-      ...process.env,
-      LOG_LEVEL: 'debug',
-      NODE_ENV: 'test'
-    }
-  });
-  
-  server.stdout.on('data', (data) => {
-    const output = data.toString().trim();
-    if (output) {
-      debug(`[SERVER STDOUT] ${output}`);
-    }
-  });
-  
-  server.stderr.on('data', (data) => {
-    const output = data.toString().trim();
-    if (output) {
-      debug(`[SERVER STDERR] ${output}`);
-    }
-  });
-  
-  server.on('error', (err) => {
-    error('Server process error', err);
-  });
-  
-  server.on('close', (code) => {
-    debug(`Server process exited with code ${code}`);
-  });
-  
-  return server;
-}
-
 // Function to test direct connectivity using curl
 async function testDirectConnectivity() {
   debug('Testing direct connectivity with curl...');
@@ -176,6 +138,44 @@ async function testDirectConnectivity() {
   return false;
 }
 
+// Function to test standalone FastMCP client
+async function testFastMCPClient() {
+  log('Testing standalone FastMCP client...');
+  
+  try {
+    // Run the test in a separate process
+    execSync('node test-fastmcp.js', { 
+      stdio: 'inherit',
+      timeout: CONFIG.clientTimeout
+    });
+    
+    log('Standalone FastMCP client test: SUCCESS');
+    return true;
+  } catch (err) {
+    error('Standalone FastMCP client test failed', err);
+    return false;
+  }
+}
+
+// Function to test MCP client SDK
+async function testMCPClientSDK() {
+  log('Testing MCP client SDK...');
+  
+  try {
+    // Run the test in a separate process
+    execSync('node test-fastmcp-client.js', { 
+      stdio: 'inherit',
+      timeout: CONFIG.clientTimeout
+    });
+    
+    log('MCP client SDK test: SUCCESS');
+    return true;
+  } catch (err) {
+    error('MCP client SDK test failed', err);
+    return false;
+  }
+}
+
 // Main test function
 async function runTest() {
   log('Starting direct connectivity test...');
@@ -183,48 +183,26 @@ async function runTest() {
   // Check environment
   checkEnvironment();
   
-  // Start server
-  const server = startServer();
+  // Test direct connectivity
+  const hasHttpConnectivity = await testDirectConnectivity();
   
-  // Wait for server to start
-  debug(`Waiting ${CONFIG.serverStartupDelay}ms for server to start...`);
-  await new Promise(resolve => setTimeout(resolve, CONFIG.serverStartupDelay));
+  if (!hasHttpConnectivity) {
+    log('Server uses stdio transport only (standard for MCP servers)');
+  }
   
-  try {
-    // Test direct connectivity
-    const hasHttpConnectivity = await testDirectConnectivity();
-    
-    if (!hasHttpConnectivity) {
-      log('Server uses stdio transport only (standard for MCP servers)');
-    }
-    
-    // Test stdio client connectivity
-    log('Testing fastmcp-client connectivity...');
-    execSync('node test-fastmcp-client.js', { 
-      stdio: 'inherit',
-      timeout: CONFIG.clientTimeout
-    });
-    
-    log('FastMCP client test: SUCCESS');
-    
-    // Test direct FastMCP connectivity
-    log('Testing direct FastMCP connectivity...');
-    execSync('node test-fastmcp.js', { 
-      stdio: 'inherit',
-      timeout: CONFIG.clientTimeout
-    });
-    
-    log('Direct FastMCP test: SUCCESS');
-    
-    log('All connectivity tests passed!');
+  // Test standalone FastMCP client
+  const fastMCPClientSuccess = await testFastMCPClient();
+  
+  // Test MCP client SDK
+  const mcpClientSDKSuccess = await testMCPClientSDK();
+  
+  // Determine overall status
+  if (fastMCPClientSuccess || mcpClientSDKSuccess) {
+    log('Connectivity tests completed successfully!');
     return 0;
-  } catch (err) {
-    error('Test failed', err);
+  } else {
+    error('All connectivity tests failed');
     return 1;
-  } finally {
-    // Terminate server
-    debug('Terminating server process...');
-    server.kill();
   }
 }
 

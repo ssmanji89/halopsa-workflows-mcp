@@ -21,29 +21,6 @@ function debug(message, ...args) {
 
 // Main test function
 async function runTest() {
-  // Start the MCP server as a child process
-  console.log('Starting MCP server...');
-  const server = exec('node dist/halopsa-mcp.js', {
-    cwd: process.cwd(),
-    env: {
-      ...process.env,
-      LOG_LEVEL: 'debug',
-      NODE_ENV: 'test'
-    }
-  });
-
-  // Set up output handlers
-  server.stdout.on('data', (data) => {
-    console.log(`[SERVER STDOUT] ${data.toString().trim()}`);
-  });
-
-  server.stderr.on('data', (data) => {
-    console.log(`[SERVER STDERR] ${data.toString().trim()}`);
-  });
-
-  // Give the server time to start
-  await new Promise(resolve => setTimeout(resolve, 2000));
-
   try {
     // Create the MCP client
     console.log('Creating MCP client...');
@@ -66,24 +43,23 @@ async function runTest() {
     };
     
     // Create the client with proper initialization
-    const client = new Client();
+    const client = new Client({
+      clientInfo: {
+        name: "HaloPSA Test Client",
+        version: "1.0.0"
+      },
+      capabilities: {
+        models: ["claude-3-opus-20240229", "claude-3-sonnet-20240229"]
+      }
+    });
     
     // Connect to the server through the transport
     console.log('Connecting to the MCP server...');
     await client.connect(transport);
-    
-    // Set client info AFTER connecting - this is required for compatibility
-    await client.initialize({
-      clientInfo: {
-        name: 'HaloPSA Test Client',
-        version: '1.0.0'
-      },
-      capabilities: {
-        models: ['claude-3-opus-20240229', 'claude-3-sonnet-20240229', 'claude-3-haiku-20240307']
-      }
-    });
-    
     console.log('Connected successfully');
+    
+    // Give server time to process connection
+    await new Promise(resolve => setTimeout(resolve, 1000));
     
     // Test listing tools
     console.log('Testing tools/list...');
@@ -111,7 +87,6 @@ async function runTest() {
     await client.close();
     
     console.log('Test completed successfully!');
-    server.kill();
     process.exit(0);
   } catch (error) {
     console.error('Test failed:', error);
@@ -128,7 +103,6 @@ async function runTest() {
       console.error('Error data:', error.data);
     }
     
-    server.kill();
     process.exit(1);
   }
 }
