@@ -5,59 +5,87 @@
  * This script uses the higher-level FastMCP client API to avoid protocol issues
  */
 
-import { FastMCP } from 'fastmcp';
-import { z } from 'zod';
-
-// Create a FastMCP client instance with proper configuration
-const client = new FastMCP({
-  name: 'test-client', 
-  version: '1.0.0',
-  // Adding authentication support for the compatibility layer
-  authenticate: async () => {
-    return { authenticated: true };
-  }
-});
+import { exec } from 'child_process';
+import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 
 // Function to run the test
 async function runTest() {
+  // Start the MCP server as a child process
+  console.log('Starting FastMCP client test...');
+  const server = exec('node dist/halopsa-mcp.js', {
+    cwd: process.cwd(),
+    env: {
+      ...process.env,
+      LOG_LEVEL: 'debug',
+      NODE_ENV: 'test'
+    }
+  });
+
+  // Set up output handlers
+  server.stdout.on('data', (data) => {
+    const output = data.toString().trim();
+    if (output) {
+      console.log(`[SERVER] ${output}`);
+    }
+  });
+
+  server.stderr.on('data', (data) => {
+    const output = data.toString().trim();
+    if (output) {
+      console.log(`[SERVER ERR] ${output}`);
+    }
+  });
+
+  // Give the server time to start
+  await new Promise(resolve => setTimeout(resolve, 2000));
+  
   try {
-    console.log('Starting FastMCP client test...');
-    
-    // Connect to the server with proper environment variables
-    await client.start({
-      transportType: 'stdio',
+    // Create a transport for the client to communicate with server
+    const transport = new StdioClientTransport({
       command: 'node',
       args: ['dist/halopsa-mcp.js'],
+      cwd: process.cwd(),
       env: {
+        ...process.env,
         LOG_LEVEL: 'debug',
         NODE_ENV: 'test'
       }
     });
     
+    // Create client with proper configuration
+    const client = new Client({
+      clientInfo: {
+        name: 'FastMCP Test Client',
+        version: '1.0.0'
+      },
+      capabilities: {
+        models: ['claude-3-opus-20240229', 'claude-3-sonnet-20240229']
+      }
+    });
+    
+    // Connect
+    console.log('Connecting to server...');
+    await client.connect(transport);
     console.log('Connected to server successfully');
     
-    // Wait a moment for server initialization to complete
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // List available tools
+    // Test listing tools
     console.log('Listing available tools...');
     const tools = await client.listTools();
-    console.log('Tools available:', tools.map(t => t.name).join(', '));
+    console.log('Tools available:', tools.tools.map(t => t.name).join(', '));
     
-    // Add tool definitions for client-side type checking
-    client.defineTool('getWorkflows', z.object({
-      includeinactive: z.boolean().optional()
-    }));
-    
-    // Test the getWorkflows tool using the defined tool
+    // Test the getWorkflows tool
     console.log('Testing getWorkflows tool...');
-    const result = await client.callTool('getWorkflows', { 
-      includeinactive: true 
+    const result = await client.callTool({
+      name: 'getWorkflows',
+      arguments: {
+        includeinactive: true
+      }
     });
     
     // Log results
     console.log('Workflows result received');
-    if (result && result.content && result.content[0] && result.content[0].text) {
+    if (result.content && result.content[0] && result.content[0].text) {
       try {
         const workflows = JSON.parse(result.content[0].text);
         console.log('Number of workflows:', Array.isArray(workflows) ? workflows.length : 'Unknown');
@@ -70,8 +98,9 @@ async function runTest() {
     }
     
     // Disconnect and complete test
-    await client.stop();
+    await client.close();
     console.log('Test completed successfully!');
+    server.kill();
     process.exit(0);
   } catch (error) {
     console.error('Test failed:', error);
@@ -80,12 +109,7 @@ async function runTest() {
       console.error('Error stack:', error.stack);
     }
     
-    try {
-      await client.stop();
-    } catch (stopError) {
-      console.error('Error during shutdown:', stopError);
-    }
-    
+    server.kill();
     process.exit(1);
   }
 }
