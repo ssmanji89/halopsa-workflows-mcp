@@ -1,0 +1,39 @@
+{
+  "name": "halopsa-workflows-mcp",
+  "version": "0.1.1",
+  "description": "HaloPSA Workflows MCP Server",
+  "type": "module",
+  "main": "halopsa-mcp.js",
+  "bin": {
+    "halopsa-workflows-mcp": "./halopsa-mcp.js"
+  },
+  "scripts": {
+    "test": "node halopsa-direct.js",
+    "start": "node halopsa-mcp.js",
+    "dev": "nodemon halopsa-mcp.js"
+  },
+  "dependencies": {
+    "axios": "^1.6.5",
+    "dotenv": "^16.3.1",
+    "fastmcp": "^1.20.5"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "halopsa",
+    "mcp",
+    "model-context-protocol",
+    "ai",
+    "claude",
+    "workflow",
+    "fastmcp",
+    "psa",
+    "automation"
+  ],
+  "author": "Suleman Manji <ssmanji89@github.com>",
+  "license": "MIT"
+}
