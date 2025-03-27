@@ -6,7 +6,7 @@
  */
 
 import { exec } from 'child_process';
-import { StdioTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 
 // Start the MCP server
@@ -28,8 +28,22 @@ setTimeout(async () => {
   try {
     // Create a client to connect to the server
     console.log('Creating client...');
-    const transport = new StdioTransport(server.stdin, server.stdout);
+    const transport = new StdioClientTransport({
+      command: 'node',
+      args: ['dist/halopsa-mcp.js'],
+      cwd: process.cwd()
+    });
+    
     const client = new Client();
+    
+    // Setup the client info before connecting
+    client.clientInfo = {
+      name: "HaloPSA Test Client",
+      version: "1.0.0",
+      capabilities: {
+        models: ["*"]
+      }
+    };
     
     // Connect to the server
     console.log('Connecting to server...');
