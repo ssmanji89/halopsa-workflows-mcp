@@ -1,0 +1,59 @@
+{
+  "name": "halopsa-workflows-mcp",
+  "version": "1.0.0",
+  "description": "MCP Server for HaloPSA Workflow API integration using FastMCP",
+  "main": "dist/index.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "start": "NODE_ENV=production node dist/index.js",
+    "start:dev": "NODE_ENV=development node dist/index.js",
+    "dev": "NODE_ENV=development npx fastmcp dev src/index.ts",
+    "inspect": "npx fastmcp inspect src/index.ts",
+    "test:connection": "node scripts/test-connection.js",
+    "prepublishOnly": "npm run build",
+    "restart": "npm run build && npm run start",
+    "monitor": "node scripts/monitor-health.js",
+    "test:startup": "node test-startup.js",
+    "start:debug": "bash -x start.sh"
+  },
+  "keywords": [
+    "halopsa",
+    "mcp",
+    "model-context-protocol",
+    "ai",
+    "claude",
+    "workflow",
+    "fastmcp",
+    "psa",
+    "automation"
+  ],
+  "author": "Suleman Manji <ssmanji89@github.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ssmanji89/halopsa-workflows-mcp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ssmanji89/halopsa-workflows-mcp/issues"
+  },
+  "homepage": "https://github.com/ssmanji89/halopsa-workflows-mcp#readme",
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "dependencies": {
+    "axios": "^1.6.5",
+    "dotenv": "^16.3.1",
+    "fastmcp": "^1.20.5",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.6",
+    "typescript": "^5.3.3"
+  },
+  "license": "MIT"
+}

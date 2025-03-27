@@ -1,0 +1,39 @@
+# Source files
+src/
+
+# Development files
+.vscode/
+.idea/
+.git/
+.gitignore
+.github/
+*.tsbuildinfo
+
+# Config files not needed in package
+tsconfig.json
+.eslintrc
+.eslintignore
+.prettierrc
+.prettierignore
+jest.config.js
+
+# Docs (keep README.md and LICENSE)
+docs/
+
+# Test files
+__tests__/
+*.spec.ts
+*.test.ts
+
+# Environment files
+.env
+.env.*
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
