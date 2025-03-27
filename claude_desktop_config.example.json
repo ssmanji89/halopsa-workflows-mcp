@@ -1,0 +1,14 @@
+{
+  "halopsa-workflows": {
+    "command": "node",
+    "args": ["/Users/sulemanmanji/Documents/GitHub/halopsa-workflows-mcp/dist/halopsa-mcp.js"],
+    "env": {
+      "HALOPSA_BASE_URL": "https://your-halopsa-instance.com",
+      "HALOPSA_CLIENT_ID": "your-client-id",
+      "HALOPSA_CLIENT_SECRET": "your-client-secret",
+      "HALOPSA_TENANT": "your-tenant-name",
+      "HALOPSA_SCOPE": "all",
+      "LOG_LEVEL": "info"
+    }
+  }
+}

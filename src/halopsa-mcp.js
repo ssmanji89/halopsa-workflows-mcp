@@ -3,6 +3,7 @@
 /**
  * HaloPSA MCP Server
  * Wrapper around the direct HaloPSA API implementation
+ * Improved with connection handling and error recovery
  */
 import { FastMCP } from 'fastmcp';
 import {
@@ -14,11 +15,60 @@ import {
   createWorkflows
 } from './halopsa-direct.js';
 
+// Set up logging
+const LOG_LEVEL = (process.env.LOG_LEVEL || 'info').toLowerCase();
+const debug = LOG_LEVEL === 'debug';
+
+/**
+ * Console logging wrapper that only logs if level is appropriate
+ */
+const logger = {
+  debug: (message) => {
+    if (debug) console.error(`[DEBUG] ${message}`);
+  },
+  info: (message) => console.error(`[INFO] ${message}`),
+  warn: (message) => console.error(`[WARN] ${message}`),
+  error: (message) => console.error(`[ERROR] ${message}`)
+};
+
 // Create a new MCP server
 const mcp = new FastMCP({
   name: 'halopsa-workflows',
   description: 'HaloPSA Workflows MCP Server',
-  models: ['claude-3-opus-20240229', 'claude-3-sonnet-20240229', 'claude-3-haiku-20240307']
+  models: ['claude-3-opus-20240229', 'claude-3-sonnet-20240229', 'claude-3-haiku-20240307', 'claude-3-5-sonnet-20240620', 'claude-3-sonnet', 'claude-3-opus', 'claude-3-haiku', 'claude-3-5-sonnet']
+});
+
+// Set up connection event handlers
+mcp.on('connect', ({ session }) => {
+  logger.info(`New client connected, session ID: ${session.server.sessionId}`);
+  
+  // Handle session-specific events
+  session.on('error', (error) => {
+    logger.warn(`Session error: ${error.error.message || 'Unknown error'}`);
+  });
+  
+  // Send welcome message
+  try {
+    session.requestSampling({
+      role: 'tool',
+      content: [{ 
+        type: 'text', 
+        text: 'Connected to HaloPSA Workflows MCP Server' 
+      }]
+    }).catch((error) => {
+      logger.debug(`Failed to send welcome message: ${error.message}`);
+    });
+  } catch (error) {
+    logger.debug(`Failed to create welcome message: ${error.message}`);
+  }
+});
+
+mcp.on('disconnect', ({ session }) => {
+  logger.info(`Client disconnected, session ID: ${session.server.sessionId}`);
+});
+
+mcp.on('error', (error) => {
+  logger.error(`Server error: ${error.message || 'Unknown error'}`);
 });
 
 // Add tools
@@ -34,13 +84,20 @@ mcp.addTool({
       }
     }
   },
-  handler: async (params) => {
+  execute: async (params, { log }) => {
     try {
+      log.info(`Fetching workflows (includeinactive=${params?.includeinactive || false})`);
       const workflows = await getWorkflows(params?.includeinactive);
-      return workflows;
+      log.info(`Retrieved ${workflows.length} workflows`);
+      return { 
+        type: 'text',
+        text: JSON.stringify(workflows, null, 2)
+      };
     } catch (error) {
+      log.error(`Failed to get workflows: ${error.message}`);
       return {
-        error: error.message
+        type: 'text',
+        text: JSON.stringify({ error: error.message }, null, 2)
       };
     }
   }
@@ -58,13 +115,20 @@ mcp.addTool({
       }
     }
   },
-  handler: async (params) => {
+  execute: async (params, { log }) => {
     try {
+      log.info(`Fetching workflow steps (includecriteriainfo=${params?.includecriteriainfo || false})`);
       const steps = await getWorkflowSteps(params?.includecriteriainfo);
-      return steps;
-    } catch (error) {
+      log.info(`Retrieved ${steps.length} workflow steps`);
       return {
-        error: error.message
+        type: 'text',
+        text: JSON.stringify(steps, null, 2)
+      };
+    } catch (error) {
+      log.error(`Failed to get workflow steps: ${error.message}`);
+      return {
+        type: 'text',
+        text: JSON.stringify({ error: error.message }, null, 2)
       };
     }
   }
@@ -87,13 +151,20 @@ mcp.addTool({
     },
     required: ['id']
   },
-  handler: async (params) => {
+  execute: async (params, { log }) => {
     try {
+      log.info(`Fetching workflow ${params.id} (includedetails=${params?.includedetails || false})`);
       const workflow = await getWorkflow(params.id, params?.includedetails);
-      return workflow;
-    } catch (error) {
+      log.info(`Retrieved workflow ${params.id}`);
       return {
-        error: error.message
+        type: 'text',
+        text: JSON.stringify(workflow, null, 2)
+      };
+    } catch (error) {
+      log.error(`Failed to get workflow ${params.id}: ${error.message}`);
+      return {
+        type: 'text',
+        text: JSON.stringify({ error: error.message }, null, 2)
       };
     }
   }
@@ -112,16 +183,23 @@ mcp.addTool({
     },
     required: ['id']
   },
-  handler: async (params) => {
+  execute: async (params, { log }) => {
     try {
+      log.info(`Deleting workflow ${params.id}`);
       await deleteWorkflow(params.id);
+      log.info(`Successfully deleted workflow ${params.id}`);
       return {
-        success: true,
-        message: `Successfully deleted workflow ${params.id}`
+        type: 'text',
+        text: JSON.stringify({
+          success: true,
+          message: `Successfully deleted workflow ${params.id}`
+        }, null, 2)
       };
     } catch (error) {
+      log.error(`Failed to delete workflow ${params.id}: ${error.message}`);
       return {
-        error: error.message
+        type: 'text',
+        text: JSON.stringify({ error: error.message }, null, 2)
       };
     }
   }
@@ -140,19 +218,56 @@ mcp.addTool({
     },
     required: ['workflows']
   },
-  handler: async (params) => {
+  execute: async (params, { log }) => {
     try {
+      log.info(`Creating ${params.workflows.length} workflows`);
       const result = await createWorkflows(params.workflows);
-      return result;
-    } catch (error) {
+      log.info(`Successfully created ${result.length} workflows`);
       return {
-        error: error.message
+        type: 'text',
+        text: JSON.stringify(result, null, 2)
+      };
+    } catch (error) {
+      log.error(`Failed to create workflows: ${error.message}`);
+      return {
+        type: 'text',
+        text: JSON.stringify({ error: error.message }, null, 2)
       };
     }
   }
 });
 
-// Start the server
-mcp.start();
+// Set up graceful shutdown
+process.on('SIGINT', handleShutdown);
+process.on('SIGTERM', handleShutdown);
+process.on('uncaughtException', (error) => {
+  logger.error(`Uncaught exception: ${error.message}`);
+  logger.error(error.stack);
+  handleShutdown();
+});
 
-console.log('[INFO] HaloPSA Workflows MCP Server started');
+async function handleShutdown() {
+  logger.info('Shutting down MCP server gracefully...');
+  try {
+    await mcp.stop();
+    logger.info('MCP server stopped successfully');
+  } catch (error) {
+    logger.error(`Error stopping MCP server: ${error.message}`);
+  }
+  // Give pending operations time to complete
+  setTimeout(() => {
+    process.exit(0);
+  }, 500);
+}
+
+// Start the server with explicit configuration
+logger.info('Starting HaloPSA Workflows MCP Server...');
+try {
+  await mcp.start({
+    transportType: 'stdio'
+  });
+  logger.info('HaloPSA Workflows MCP Server started successfully');
+} catch (error) {
+  logger.error(`Failed to start MCP server: ${error.message}`);
+  process.exit(1);
+}
