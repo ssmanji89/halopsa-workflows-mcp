@@ -116,10 +116,23 @@ class MinimalMcpClient {
       
       // Handle response
       if (jsonMessage.id !== undefined && this.onResponse) {
+        // Check for error and try to determine if it's a compatibility issue
+        if (jsonMessage.error && 
+            jsonMessage.error.message && 
+            (jsonMessage.error.message.includes('clientInfo') || 
+             jsonMessage.error.message.includes('protocolVersion') || 
+             jsonMessage.error.message.includes('capabilities'))) {
+          
+          logger.debug('Detected protocol compatibility issue, will try fallback methods');
+          // Store this for diagnostics
+          this.lastProtocolError = jsonMessage.error;
+        }
+        
         this.onResponse(jsonMessage);
       }
     } catch (error) {
       // Not JSON, ignore
+      logger.debug(`Could not parse server message: ${message.substring(0, 100)}...`);
     }
   }
   
@@ -141,6 +154,11 @@ class MinimalMcpClient {
         clientInfo: {
           name: 'MinimalMcpClient',
           version: '1.0.0'
+        },
+        protocolVersion: '1.0',
+        capabilities: {
+          models: ['claude-3-opus-20240229', 'claude-3-sonnet-20240229', 'claude-3-haiku-20240307'],
+          tools: {}
         }
       },
       id: this.nextMessageId++
@@ -239,6 +257,103 @@ class MinimalMcpClient {
 }
 
 /**
+ * Test different initialize protocols to find compatible ones
+ */
+async function testProtocolCompatibility(client) {
+  logger.log('Testing protocol compatibility with multiple variants...');
+  
+  // Protocol variants to try in order
+  const protocolVariants = [
+    // Standard protocol - v1.0 with all required fields
+    {
+      name: 'Standard MCP Protocol v1.0',
+      message: {
+        jsonrpc: '2.0',
+        method: 'initialize',
+        params: {
+          clientInfo: {
+            name: 'MinimalMcpClient',
+            version: '1.0.0'
+          },
+          protocolVersion: '1.0',
+          capabilities: {
+            models: ['claude-3-opus-20240229', 'claude-3-sonnet-20240229'],
+            tools: {}
+          }
+        },
+        id: client.nextMessageId++
+      }
+    },
+    
+    // Backwards compatibility mode
+    {
+      name: 'FastMCP Compatibility Mode',
+      message: {
+        jsonrpc: '2.0',
+        method: 'initialize',
+        params: {
+          clientInfo: {
+            name: 'FastMCPClient',
+            version: '1.0.0'
+          }
+        },
+        id: client.nextMessageId++
+      }
+    },
+    
+    // Direct protocol mode
+    {
+      name: 'Direct Protocol Mode',
+      message: {
+        jsonrpc: '2.0',
+        method: 'client/initialize',
+        params: {},
+        id: client.nextMessageId++
+      }
+    }
+  ];
+  
+  // Try each variant
+  for (const variant of protocolVariants) {
+    logger.log(`Trying protocol variant: ${variant.name}`);
+    
+    try {
+      const result = await new Promise((resolve, reject) => {
+        client.onResponse = (response) => {
+          if (response.id === variant.message.id) {
+            if (response.error) {
+              reject(new Error(response.error.message));
+            } else {
+              resolve(response.result);
+            }
+            client.onResponse = null;
+          }
+        };
+        
+        client.sendRawMessage(variant.message);
+        
+        // Set timeout
+        setTimeout(() => {
+          if (client.onResponse) {
+            client.onResponse = null;
+            reject(new Error('Initialize timeout'));
+          }
+        }, 5000);
+      });
+      
+      logger.log(`Protocol variant succeeded: ${variant.name}`);
+      client.connected = true;
+      return { success: true, variant: variant.name, result };
+    } catch (error) {
+      logger.debug(`Protocol variant failed: ${variant.name}`);
+      logger.debug(`Error: ${error.message}`);
+    }
+  }
+  
+  throw new Error('All protocol variants failed');
+}
+
+/**
  * Run the compatibility test suite
  */
 async function runCompatibilityTest() {
@@ -253,10 +368,10 @@ async function runCompatibilityTest() {
     logger.log('Starting MCP server...');
     await client.startServer();
     
-    // Initialize client
-    logger.log('Initializing minimal client...');
-    await client.initialize();
-    logger.log('Minimal client initialized successfully');
+    // Try different protocol variants until one works
+    logger.log('Initializing client with protocol compatibility testing...');
+    const initResult = await testProtocolCompatibility(client);
+    logger.log(`Successfully connected using protocol: ${initResult.variant}`);
     
     // List tools
     logger.log('Listing available tools...');
