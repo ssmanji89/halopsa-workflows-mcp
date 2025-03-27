@@ -1,6 +1,6 @@
 {
   "name": "halopsa-workflows-mcp",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "HaloPSA Workflows MCP Server",
   "type": "module",
   "main": "dist/index.js",
@@ -12,12 +12,17 @@
     "test": "node dist/halopsa-direct.js",
     "start": "node dist/halopsa-mcp.js",
     "dev": "nodemon --watch src -e ts,js --exec npm run build && npm run start",
+    "test:integration": "node test-fastmcp-client.js",
+    "test:all": "npm run test:integration && node test-fastmcp.js",
     "prepublishOnly": "npm run build"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.8.0",
     "axios": "^1.6.5",
     "dotenv": "^16.3.1",
-    "fastmcp": "^1.20.5"
+    "fastmcp": "^1.20.5",
+    "zod": "^3.24.2",
+    "zod-to-json-schema": "^3.24.3"
   },
   "devDependencies": {
     "@types/node": "^20.10.6",
@@ -25,7 +30,7 @@
     "typescript": "^5.3.3"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=20.0.0"
   },
   "files": [
     "dist",
