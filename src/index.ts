@@ -6,18 +6,19 @@ import { FastMCP } from 'fastmcp';
 import { z } from 'zod';
 import dotenv from 'dotenv';
 import * as api from './api.js';
+import { EventEmitter } from 'events';
 
 // Load environment variables
 dotenv.config();
 
 import { ConnectionStateManager, TimerManager, setupGracefulShutdown, withTimeout } from './utils.js';
 
-// Define global variables for error throttling
+// Define global variables for error throttling without redeclaring gc
 declare global {
   var lastEpipeErrorTime: number | undefined;
   var lastTimeoutErrorTime: number | undefined;
   var disconnectionCount: number | undefined;
-  var gc: (() => void) | undefined;
+  // Don't redeclare gc as it's already declared in @types/node
 }
 
 // Initialize globals
@@ -177,9 +178,10 @@ const server = new FastMCP({
 // Store the server instance for shutdown handling
 serverInstance = server;
 
-// Add a custom ping handler to detect client activity
-// Not all FastMCP versions support this, so we use optional chaining
-server.on?.('ping', () => {
+// Add a custom ping handler using an alternative approach
+// Since FastMCP doesn't explicitly support 'ping' events in its type definition
+// We'll create a custom handler through the underlying EventEmitter
+(server as unknown as EventEmitter).on('ping', () => {
   // Update connection state on ping
   if (!connectionState.isConnected) {
     console.error('[INFO] Received ping from client - reconnecting');
