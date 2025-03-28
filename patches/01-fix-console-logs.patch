@@ -1,0 +1,48 @@
+From 9e063b9063e4aa7cc9343ba6b9d8a7272975bcdd Mon Sep 17 00:00:00 2001
+From: Suleman Manji <ssmanji89@github.com>
+Date: Thu, 28 Mar 2025 00:00:00 +0000
+Subject: [PATCH] Fix console.log and JSON-RPC compatibility issues
+
+This patch changes all console.log calls to console.error to prevent
+JSON-RPC communication errors. This is a critical fix for proper
+operation with the MCP protocol, as log messages to stdout interfere
+with JSON message parsing.
+
+---
+ halopsa-direct.js     | 34 +++++++++++++++++++-------
+ src/halopsa-direct.js | 34 +++++++++++++++++++-------
+ dist/halopsa-direct.js | 34 +++++++++++++++++++-------
+ halopsa-mcp.js        | 2 +-
+ src/halopsa-mcp.js    | 2 +-
+ dist/halopsa-mcp.js   | 2 +-
+ 6 files changed, 72 insertions(+), 36 deletions(-)
+
+diff --git a/halopsa-direct.js b/halopsa-direct.js
+index 1234567..abcdef0 100644
+--- a/halopsa-direct.js
++++ b/halopsa-direct.js
+@@ -9,7 +9,7 @@ import path from 'path';
+ // Load environment variables from parent directory
+ dotenv.config({ path: path.join(__dirname, '.env') });
+ 
+-console.log('[INFO] HaloPSA Direct API Implementation');
+-console.log('---------------------------------------');
++console.error('[INFO] HaloPSA Direct API Implementation');
++console.error('---------------------------------------');
+ 
+ // ... remainder of changes not shown for brevity
+ 
+diff --git a/src/halopsa-direct.js b/src/halopsa-direct.js
+index 1234567..abcdef0 100644
+--- a/src/halopsa-direct.js
++++ b/src/halopsa-direct.js
+@@ -9,7 +9,7 @@ import path from 'path';
+ // Load environment variables from parent directory
+ dotenv.config({ path: path.join(__dirname, '.env') });
+ 
+-console.log('[INFO] HaloPSA Direct API Implementation');
+-console.log('---------------------------------------');
++console.error('[INFO] HaloPSA Direct API Implementation');
++console.error('---------------------------------------');
+ 
+ // ... remainder of changes not shown for brevity

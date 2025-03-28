@@ -1,115 +1,95 @@
-# MCP Compatibility Report
+# HaloPSA Workflows MCP Compatibility Guide
 
-This document summarizes the compatibility issues between different Model Context Protocol (MCP) implementations and the solutions implemented in this project.
+This document outlines compatibility issues and solutions for the HaloPSA Workflows MCP server.
 
-## Identified Compatibility Issues
+## JSON-RPC Communication Issues
 
-The following compatibility issues were identified across different MCP implementations:
+The Model Context Protocol (MCP) uses JSON-RPC over stdio for communication between the client and server. This can lead to compatibility issues when log messages are written to stdout and stderr during normal operation.
 
-1. **Protocol Negotiation Differences**
-   - Different implementations require different fields in the `initialize` request
-   - Some implementations require explicit `protocolVersion` and `capabilities`
-   - FastMCP implementations have differing requirements for client authentication
+### Problem: Log Messages Interfere with JSON-RPC
 
-2. **Tool Call API Differences**
-   - Implementations differ in how tools are called (`tools/call` vs direct methods)
-   - Parameter validation mechanisms vary between implementations
-   - Error handling and response formats differ
+The most common issue encountered is when log messages output to stdout interfere with the JSON-RPC communication. This causes errors like:
 
-3. **Event Handling Differences**
-   - Session connection handling varies between implementations
-   - Some implementations require explicit client initialization
-
-4. **Transport-level Differences**
-   - Some implementations only support stdio transport
-   - Others support HTTP/SSE transport options
-
-## Compatibility Solutions
-
-The following solutions have been implemented to address these compatibility issues:
-
-1. **Multi-protocol Negotiation**
-   - Implemented a protocol negotiation layer that tries multiple protocol formats
-   - Added fallback mechanisms for different client initialization formats
-   - Enhanced error handling to support different error response formats
-
-2. **Flexible Tool Calling**
-   - Implemented alternative tool call methods to support different MCP implementations
-   - Added fallbacks for tool parameter validation
-   - Normalized tool response formats
-
-3. **Enhanced Error Handling**
-   - Added robust error handling with diagnostic information
-   - Implemented graceful degradation when certain features are not available
-   - Provided fallback mock data for testing when real data cannot be retrieved
-
-4. **Compatibility Testing Framework**
-   - Created a comprehensive compatibility test suite
-   - Test suite automatically tries different protocol variants
-   - Test reports help identify specific compatibility issues
-
-## Implementation Notes
-
-### FastMCP Compatibility
-
-The FastMCP implementation (`fastmcp` package) requires specific initialization parameters:
-
-```javascript
-// Required initialization for FastMCP
-const initMessage = {
-  jsonrpc: '2.0',
-  method: 'initialize',
-  params: {
-    clientInfo: {
-      name: 'ClientName',
-      version: '1.0.0'
-    },
-    protocolVersion: '1.0',
-    capabilities: {
-      models: ['claude-3-opus-20240229', 'claude-3-sonnet-20240229'],
-      tools: {}
-    }
-  },
-  id: 1
-};
+```
+MCP halopsa-workflows: Unexpected token 'I', "[INFO]..." is not valid JSON
+MCP halopsa-workflows: No number after minus sign in JSON at position 1
+MCP halopsa-workflows: Unexpected token 'B', "Base URL:..." is not valid JSON
 ```
 
-### Azure MCP Compatibility
+These occur because the MCP client tries to parse every line from stdout as JSON, but encounters log messages instead.
 
-Azure MCP implementation has different requirements for tool calling:
+### Solution: Redirect All Logs to stderr
 
-```javascript
-// Azure MCP tool call format
-const callToolMessage = {
-  jsonrpc: '2.0',
-  method: `tools/${toolName}`, // Direct method naming
-  params: args,
-  id: 1
-};
+To prevent this issue, all log messages should be redirected from stdout to stderr:
+
+1. Replace all `console.log()` calls with `console.error()`
+2. Use the enhanced logging module provided in `patches/02-enhanced-logging.js`
+3. Set the `LOG_TO_FILE=true` environment variable to redirect logs to a file
+
+### Patches
+
+Two patches are provided to address these issues:
+
+1. `patches/01-fix-console-logs.patch` - Replaces all console.log calls with console.error
+2. `patches/02-enhanced-logging.js` - Provides an enhanced logging module with stderr and file output
+
+## Applying the Fixes
+
+### Quick Fix
+
+Run the following commands to quickly fix the issues:
+
+```bash
+# Replace console.log with console.error in key files
+cd /path/to/halopsa-workflows-mcp
+sed -i '' 's/console.log/console.error/g' halopsa-direct.js src/halopsa-direct.js dist/halopsa-direct.js
+sed -i '' 's/console.log/console.error/g' halopsa-mcp.js src/halopsa-mcp.js dist/halopsa-mcp.js
 ```
 
-### Browser-use MCP Server Compatibility
+### Recommended: Use Enhanced Logging
 
-Browser-use MCP Server requires HTTP/SSE transport configuration:
+For a more robust solution, integrate the enhanced logging module:
+
+1. Copy `patches/02-enhanced-logging.js` to `src/utils/logging.js`
+2. Import and use the logger in your main files:
 
 ```javascript
-// Browser-use MCP Server configuration
-const server = createCompatibleMcpServer(config);
-await server.start({
-  transportType: 'sse',
-  sse: {
-    endpoint: '/v1/mcp',
-    port: 3000
-  }
-});
+import { logger, installSafeConsole } from './utils/logging.js';
+
+// Ensure no console.log calls interfere with MCP
+installSafeConsole();
+
+// Use logger instead of console
+logger.info('HaloPSA Workflows MCP Server starting');
+logger.debug('Debug information');
 ```
 
-## Testing Your MCP Implementation
+### Environment Variables
 
-To test your MCP implementation against our compatibility layer, run:
+Configure logging with these environment variables:
+
+- `LOG_LEVEL`: Set to 'debug', 'info', 'warn', or 'error' (default: 'info')
+- `LOG_TO_FILE`: Set to 'true' to write logs to a file (default: 'false')
+- `LOG_FILE`: Path to the log file (default: './halopsa-mcp-server.log')
+
+Example `.env` entry:
+```
+LOG_LEVEL=debug
+LOG_TO_FILE=true
+LOG_FILE=./logs/halopsa-mcp.log
+```
+
+## Testing Compatibility
+
+Run the compatibility test to verify the fix:
 
 ```bash
 node test-compatibility.js
 ```
 
-This will execute a series of tests to verify compatibility across different protocol variants and report any issues.
+A successful test will show:
+```
+[INFO] ====================================
+[INFO] MCP COMPATIBILITY TEST SUITE PASSED
+[INFO] ====================================
+```

@@ -155,4 +155,4 @@ mcp.addTool({
 // Start the server
 mcp.start();
 
-console.log('[INFO] HaloPSA Workflows MCP Server started');
+console.error('[INFO] HaloPSA Workflows MCP Server started');
