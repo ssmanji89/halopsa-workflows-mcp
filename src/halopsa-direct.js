@@ -33,14 +33,14 @@ if (!config.baseUrl || !config.tenant || !config.clientId || !config.clientSecre
   process.exit(1);
 }
 
-console.error('[INFO] HaloPSA Direct API Implementation');
-console.error('---------------------------------------');
-console.error(`Base URL: ${config.baseUrl}`);
-console.error(`Tenant: ${config.tenant}`);
-console.error(`Client ID: ${config.clientId}`);
-console.error(`Client Secret: ${config.clientSecret.substring(0, 10)}...`);
-console.error(`Scope: ${config.scope}`);
-console.error('---------------------------------------');
+console.log('[INFO] HaloPSA Direct API Implementation');
+console.log('---------------------------------------');
+console.log(`Base URL: ${config.baseUrl}`);
+console.log(`Tenant: ${config.tenant}`);
+console.log(`Client ID: ${config.clientId}`);
+console.log(`Client Secret: ${config.clientSecret.substring(0, 10)}...`);
+console.log(`Scope: ${config.scope}`);
+console.log('---------------------------------------');
 
 let tokenCache = {
   accessToken: null,
@@ -54,15 +54,15 @@ let tokenCache = {
 async function getAuthToken() {
   // Check if we have a valid cached token
   if (tokenCache.accessToken && tokenCache.expiresAt > Date.now()) {
-    console.error('[INFO] Using cached token');
+    console.log('[INFO] Using cached token');
     return tokenCache.accessToken;
   }
 
-  console.error('[INFO] Getting new auth token...');
+  console.log('[INFO] Getting new auth token...');
   try {
     // Prepare the token URL with tenant parameter
     const tokenUrl = `${config.baseUrl}/auth/token?tenant=${config.tenant}`;
-    console.error(`[DEBUG] Token URL: ${tokenUrl}`);
+    console.log(`[DEBUG] Token URL: ${tokenUrl}`);
 
     // Prepare form data exactly like successful curl command
     const formData = new URLSearchParams();
@@ -87,7 +87,7 @@ async function getAuthToken() {
       expiresAt: Date.now() + (expires_in * 1000) - 60000 // Buffer 1 minute
     };
 
-    console.error(`[INFO] Successfully obtained auth token, expires in ${expires_in} seconds`);
+    console.log(`[INFO] Successfully obtained auth token, expires in ${expires_in} seconds`);
     return access_token;
   } catch (error) {
     console.error('[ERROR] Failed to get auth token:');
@@ -113,7 +113,7 @@ async function getWorkflows(includeInactive = false) {
 
     // Prepare API endpoint
     const apiEndpoint = `${config.baseUrl}/api/Workflow`;
-    console.error(`[DEBUG] API Endpoint: ${apiEndpoint}`);
+    console.log(`[DEBUG] API Endpoint: ${apiEndpoint}`);
 
     // Query parameters
     const params = {};
@@ -130,7 +130,7 @@ async function getWorkflows(includeInactive = false) {
       params
     });
 
-    console.error(`[INFO] Retrieved ${response.data.length} workflows`);
+    console.log(`[INFO] Retrieved ${response.data.length} workflows`);
     return response.data;
   } catch (error) {
     console.error('[ERROR] Failed to get workflows:');
@@ -156,7 +156,7 @@ async function getWorkflowSteps(includeCriteriaInfo = false) {
 
     // Prepare API endpoint
     const apiEndpoint = `${config.baseUrl}/api/WorkflowStep`;
-    console.error(`[DEBUG] API Endpoint: ${apiEndpoint}`);
+    console.log(`[DEBUG] API Endpoint: ${apiEndpoint}`);
 
     // Query parameters
     const params = {};
@@ -173,7 +173,7 @@ async function getWorkflowSteps(includeCriteriaInfo = false) {
       params
     });
 
-    console.error(`[INFO] Retrieved ${response.data.length} workflow steps`);
+    console.log(`[INFO] Retrieved ${response.data.length} workflow steps`);
     return response.data;
   } catch (error) {
     console.error('[ERROR] Failed to get workflow steps:');
@@ -200,7 +200,7 @@ async function getWorkflow(id, includeDetails = false) {
 
     // Prepare API endpoint
     const apiEndpoint = `${config.baseUrl}/api/Workflow/${id}`;
-    console.error(`[DEBUG] API Endpoint: ${apiEndpoint}`);
+    console.log(`[DEBUG] API Endpoint: ${apiEndpoint}`);
 
     // Query parameters
     const params = {};
@@ -217,7 +217,7 @@ async function getWorkflow(id, includeDetails = false) {
       params
     });
 
-    console.error(`[INFO] Retrieved workflow ${id}`);
+    console.log(`[INFO] Retrieved workflow ${id}`);
     return response.data;
   } catch (error) {
     console.error(`[ERROR] Failed to get workflow ${id}:`);
@@ -243,7 +243,7 @@ async function deleteWorkflow(id) {
 
     // Prepare API endpoint
     const apiEndpoint = `${config.baseUrl}/api/Workflow/${id}`;
-    console.error(`[DEBUG] API Endpoint: ${apiEndpoint}`);
+    console.log(`[DEBUG] API Endpoint: ${apiEndpoint}`);
 
     // Make API request
     await axios.delete(apiEndpoint, {
@@ -253,7 +253,7 @@ async function deleteWorkflow(id) {
       }
     });
 
-    console.error(`[INFO] Deleted workflow ${id}`);
+    console.log(`[INFO] Deleted workflow ${id}`);
   } catch (error) {
     console.error(`[ERROR] Failed to delete workflow ${id}:`);
     if (error.response) {
@@ -278,7 +278,7 @@ async function createWorkflows(workflows) {
 
     // Prepare API endpoint
     const apiEndpoint = `${config.baseUrl}/api/Workflow`;
-    console.error(`[DEBUG] API Endpoint: ${apiEndpoint}`);
+    console.log(`[DEBUG] API Endpoint: ${apiEndpoint}`);
 
     // Make API request
     const response = await axios.post(apiEndpoint, workflows, {
@@ -289,7 +289,7 @@ async function createWorkflows(workflows) {
       }
     });
 
-    console.error(`[INFO] Created ${response.data.length} workflows`);
+    console.log(`[INFO] Created ${response.data.length} workflows`);
     return response.data;
   } catch (error) {
     console.error('[ERROR] Failed to create workflows:');
@@ -315,37 +315,37 @@ export {
 
 // If this file is run directly, test the functions
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  console.error('[INFO] Running direct test...');
+  console.log('[INFO] Running direct test...');
   
   (async () => {
     try {
       // Test getting workflows
-      console.error('\n[TEST] Getting workflows...');
+      console.log('\n[TEST] Getting workflows...');
       const workflows = await getWorkflows();
-      console.error(`Retrieved ${workflows.length} workflows`);
+      console.log(`Retrieved ${workflows.length} workflows`);
       
       if (workflows.length > 0) {
-        console.error('First workflow:', workflows[0]);
+        console.log('First workflow:', workflows[0]);
         
         // Test getting workflow details
-        console.error(`\n[TEST] Getting workflow ${workflows[0].id} details...`);
+        console.log(`\n[TEST] Getting workflow ${workflows[0].id} details...`);
         const workflow = await getWorkflow(workflows[0].id, true);
-        console.error('Workflow details:', workflow);
+        console.log('Workflow details:', workflow);
       }
       
       // Test getting workflow steps
-      console.error('\n[TEST] Getting workflow steps...');
+      console.log('\n[TEST] Getting workflow steps...');
       try {
         const steps = await getWorkflowSteps();
-        console.error(`Retrieved ${steps.length} workflow steps`);
+        console.log(`Retrieved ${steps.length} workflow steps`);
         if (steps.length > 0) {
-          console.error('First workflow step:', steps[0]);
+          console.log('First workflow step:', steps[0]);
         }
       } catch (error) {
-        console.error('Workflow steps not available or accessible');
+        console.log('Workflow steps not available or accessible');
       }
       
-      console.error('\n[INFO] Test completed successfully!');
+      console.log('\n[INFO] Test completed successfully!');
     } catch (error) {
       console.error('[ERROR] Test failed:', error.message);
     }

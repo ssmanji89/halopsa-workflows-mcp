@@ -42,17 +42,14 @@ async function runTest() {
       debug('Transport error:', error);
     };
     
-    // Create the client with proper initialization that includes
-    // all required fields as per latest MCP protocol
+    // Create the client with proper initialization
     const client = new Client({
       clientInfo: {
         name: "HaloPSA Test Client",
         version: "1.0.0"
       },
-      protocolVersion: "1.0",
       capabilities: {
-        models: ["claude-3-opus-20240229", "claude-3-sonnet-20240229", "claude-3-haiku-20240307"],
-        tools: {}
+        models: ["claude-3-opus-20240229", "claude-3-sonnet-20240229"]
       }
     });
     

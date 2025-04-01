@@ -53,7 +53,7 @@ async function runTest() {
       }
     });
     
-    // Create client with minimal configuration first
+    // Create client with proper configuration
     console.log('Creating client...');
     const client = new Client();
     
@@ -61,28 +61,14 @@ async function runTest() {
     console.log('Connecting to server...');
     await client.connect(transport);
     
-    // Initialize client with explicit init message that includes all required fields
+    // Initialize client with capabilities
     console.log('Initializing client...');
-    const initMessage = {
-      jsonrpc: "2.0",
-      method: "initialize",
-      params: {
-        clientInfo: {
-          name: "FastMCP Test Client",
-          version: "1.0.0"
-        },
-        protocolVersion: "1.0",
-        capabilities: {
-          models: ["claude-3-opus-20240229", "claude-3-sonnet-20240229"],
-          tools: {}
-        }
-      },
-      id: 1
-    };
-    
-    // Directly send the initialize message to bypass SDK validation
-    const initResult = await transport.request(initMessage);
-    console.log('Initialization result:', JSON.stringify(initResult));
+    await client.initialize({
+      clientInfo: {
+        name: "FastMCP Test Client",
+        version: "1.0.0"
+      }
+    });
     
     console.log('Connected to server successfully');
     
