@@ -33,14 +33,14 @@ if (!config.baseUrl || !config.tenant || !config.clientId || !config.clientSecre
   process.exit(1);
 }
 
-console.log('[INFO] HaloPSA Direct API Implementation');
-console.log('---------------------------------------');
-console.log(`Base URL: ${config.baseUrl}`);
-console.log(`Tenant: ${config.tenant}`);
-console.log(`Client ID: ${config.clientId}`);
-console.log(`Client Secret: ${config.clientSecret.substring(0, 10)}...`);
-console.log(`Scope: ${config.scope}`);
-console.log('---------------------------------------');
+console.error('[INFO] HaloPSA Direct API Implementation');
+console.error('---------------------------------------');
+console.error(`Base URL: ${config.baseUrl}`);
+console.error(`Tenant: ${config.tenant}`);
+console.error(`Client ID: ${config.clientId}`);
+console.error(`Client Secret: ${config.clientSecret.substring(0, 10)}...`);
+console.error(`Scope: ${config.scope}`);
+console.error('---------------------------------------');
 
 let tokenCache = {
   accessToken: null,
@@ -54,15 +54,15 @@ let tokenCache = {
 async function getAuthToken() {
   // Check if we have a valid cached token
   if (tokenCache.accessToken && tokenCache.expiresAt > Date.now()) {
-    console.log('[INFO] Using cached token');
+    console.error('[INFO] Using cached token');
     return tokenCache.accessToken;
   }
 
-  console.log('[INFO] Getting new auth token...');
+  console.error('[INFO] Getting new auth token...');
   try {
     // Prepare the token URL with tenant parameter
     const tokenUrl = `${config.baseUrl}/auth/token?tenant=${config.tenant}`;
-    console.log(`[DEBUG] Token URL: ${tokenUrl}`);
+    console.error(`[DEBUG] Token URL: ${tokenUrl}`);
 
     // Prepare form data exactly like successful curl command
     const formData = new URLSearchParams();
