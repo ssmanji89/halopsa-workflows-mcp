@@ -260,14 +260,42 @@ async function handleShutdown() {
   }, 500);
 }
 
+// Verify API connectivity before starting the server
+async function verifyApiConnectivity() {
+  try {
+    logger.info('Verifying HaloPSA API connectivity...');
+    const token = await getAuthToken();
+    logger.info('Successfully authenticated with HaloPSA API');
+    return true;
+  } catch (error) {
+    logger.error(`HaloPSA API connectivity test failed: ${error.message}`);
+    if (error.response) {
+      logger.error(`Status: ${error.response.status}`);
+      logger.error(`Response data: ${JSON.stringify(error.response.data)}`);
+    }
+    return false;
+  }
+}
+
 // Start the server with explicit configuration
 logger.info('Starting HaloPSA Workflows MCP Server...');
 try {
+  // Verify API connectivity first
+  const apiConnected = await verifyApiConnectivity();
+  if (!apiConnected) {
+    logger.error('Cannot start MCP server due to HaloPSA API connectivity issues');
+    process.exit(1);
+  }
+  
+  // Start the MCP server
   await mcp.start({
     transportType: 'stdio'
   });
   logger.info('HaloPSA Workflows MCP Server started successfully');
 } catch (error) {
   logger.error(`Failed to start MCP server: ${error.message}`);
+  if (error.stack) {
+    logger.error(`Stack trace: ${error.stack}`);
+  }
   process.exit(1);
 }

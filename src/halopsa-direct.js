@@ -61,7 +61,9 @@ async function getAuthToken() {
   console.error('[INFO] Getting new auth token...');
   try {
     // Prepare the token URL with tenant parameter
-    const tokenUrl = `${config.baseUrl}/auth/token?tenant=${config.tenant}`;
+    // HaloPSA auth endpoints are typically at baseUrl/auth, not baseUrl/api/auth
+    const baseUrlWithoutApi = config.baseUrl.replace(/\/api$/, '');
+    const tokenUrl = `${baseUrlWithoutApi}/auth/token?tenant=${config.tenant}`;
     console.error(`[DEBUG] Token URL: ${tokenUrl}`);
 
     // Prepare form data exactly like successful curl command
@@ -87,17 +89,35 @@ async function getAuthToken() {
       expiresAt: Date.now() + (expires_in * 1000) - 60000 // Buffer 1 minute
     };
 
-    console.log(`[INFO] Successfully obtained auth token, expires in ${expires_in} seconds`);
+    console.error(`[INFO] Successfully obtained auth token, expires in ${expires_in} seconds`);
     return access_token;
   } catch (error) {
     console.error('[ERROR] Failed to get auth token:');
     if (error.response) {
       console.error(`Status: ${error.response.status}`);
-      console.error('Response:', error.response.data);
+      console.error('Response:', JSON.stringify(error.response.data, null, 2));
+      console.error(`URL: ${error.response.config.url}`);
+      console.error(`Method: ${error.response.config.method}`);
+      console.error(`Headers: ${JSON.stringify(error.response.config.headers, null, 2)}`);
+      
+      // Remove sensitive info for logging
+      const sanitizedData = { ...error.response.config.data };
+      if (sanitizedData && typeof sanitizedData === 'string') {
+        const formData = new URLSearchParams(sanitizedData);
+        formData.set('client_secret', '***REDACTED***');
+        console.error(`Request data: ${formData.toString()}`);
+      }
+      
+      throw new Error(`Authentication failed: ${error.response.status} - ${JSON.stringify(error.response.data)}`);
+    } else if (error.request) {
+      console.error('No response received from server');
+      console.error('Request details:', error.request);
+      throw new Error(`Authentication failed: No response from server - ${error.message}`);
     } else {
-      console.error(error.message);
+      console.error('Error creating request:', error.message);
+      console.error('Stack trace:', error.stack);
+      throw new Error(`Authentication failed: Request error - ${error.message}`);
     }
-    throw new Error(`Authentication failed: ${error.message}`);
   }
 }
 
@@ -113,7 +133,7 @@ async function getWorkflows(includeInactive = false) {
 
     // Prepare API endpoint
     const apiEndpoint = `${config.baseUrl}/api/Workflow`;
-    console.log(`[DEBUG] API Endpoint: ${apiEndpoint}`);
+    console.error(`[DEBUG] API Endpoint: ${apiEndpoint}`);
 
     // Query parameters
     const params = {};
@@ -130,7 +150,7 @@ async function getWorkflows(includeInactive = false) {
       params
     });
 
-    console.log(`[INFO] Retrieved ${response.data.length} workflows`);
+    console.error(`[INFO] Retrieved ${response.data.length} workflows`);
     return response.data;
   } catch (error) {
     console.error('[ERROR] Failed to get workflows:');
@@ -156,7 +176,7 @@ async function getWorkflowSteps(includeCriteriaInfo = false) {
 
     // Prepare API endpoint
     const apiEndpoint = `${config.baseUrl}/api/WorkflowStep`;
-    console.log(`[DEBUG] API Endpoint: ${apiEndpoint}`);
+    console.error(`[DEBUG] API Endpoint: ${apiEndpoint}`);
 
     // Query parameters
     const params = {};
@@ -200,7 +220,7 @@ async function getWorkflow(id, includeDetails = false) {
 
     // Prepare API endpoint
     const apiEndpoint = `${config.baseUrl}/api/Workflow/${id}`;
-    console.log(`[DEBUG] API Endpoint: ${apiEndpoint}`);
+    console.error(`[DEBUG] API Endpoint: ${apiEndpoint}`);
 
     // Query parameters
     const params = {};
@@ -278,7 +298,7 @@ async function createWorkflows(workflows) {
 
     // Prepare API endpoint
     const apiEndpoint = `${config.baseUrl}/api/Workflow`;
-    console.log(`[DEBUG] API Endpoint: ${apiEndpoint}`);
+    console.error(`[DEBUG] API Endpoint: ${apiEndpoint}`);
 
     // Make API request
     const response = await axios.post(apiEndpoint, workflows, {
@@ -315,37 +335,37 @@ export {
 
 // If this file is run directly, test the functions
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  console.log('[INFO] Running direct test...');
+  console.error('[INFO] Running direct test...');
   
   (async () => {
     try {
       // Test getting workflows
-      console.log('\n[TEST] Getting workflows...');
+      console.error('\n[TEST] Getting workflows...');
       const workflows = await getWorkflows();
-      console.log(`Retrieved ${workflows.length} workflows`);
+      console.error(`Retrieved ${workflows.length} workflows`);
       
       if (workflows.length > 0) {
-        console.log('First workflow:', workflows[0]);
+        console.error('First workflow:', workflows[0]);
         
         // Test getting workflow details
-        console.log(`\n[TEST] Getting workflow ${workflows[0].id} details...`);
+        console.error(`\n[TEST] Getting workflow ${workflows[0].id} details...`);
         const workflow = await getWorkflow(workflows[0].id, true);
-        console.log('Workflow details:', workflow);
+        console.error('Workflow details:', workflow);
       }
       
       // Test getting workflow steps
-      console.log('\n[TEST] Getting workflow steps...');
+      console.error('\n[TEST] Getting workflow steps...');
       try {
         const steps = await getWorkflowSteps();
-        console.log(`Retrieved ${steps.length} workflow steps`);
+        console.error(`Retrieved ${steps.length} workflow steps`);
         if (steps.length > 0) {
-          console.log('First workflow step:', steps[0]);
+          console.error('First workflow step:', steps[0]);
         }
       } catch (error) {
-        console.log('Workflow steps not available or accessible');
+        console.error('Workflow steps not available or accessible');
       }
       
-      console.log('\n[INFO] Test completed successfully!');
+      console.error('\n[INFO] Test completed successfully!');
     } catch (error) {
       console.error('[ERROR] Test failed:', error.message);
     }
