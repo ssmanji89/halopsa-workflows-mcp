@@ -1,6 +1,6 @@
 /**
  * Direct HaloPSA API Implementation
- * Based on successful curl commands
+ * Based on successful curl commands, with enhanced error handling and logging
  */
 import axios from 'axios';
 import dotenv from 'dotenv';
@@ -16,7 +16,7 @@ const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.join(__dirname, '..', '.env') });
 
 /**
- * HaloPSA API Configuration
+ * HaloPSA API Configuration with validation
  */
 const config = {
   baseUrl: process.env.HALOPSA_BASE_URL,
@@ -26,26 +26,133 @@ const config = {
   scope: process.env.HALOPSA_SCOPE || 'all'
 };
 
-// Validate configuration
-if (!config.baseUrl || !config.tenant || !config.clientId || !config.clientSecret) {
-  console.error('[ERROR] Missing required configuration. Please check your .env file.');
-  console.error('Required variables: HALOPSA_BASE_URL, HALOPSA_TENANT, HALOPSA_CLIENT_ID, HALOPSA_CLIENT_SECRET');
+// Configurable settings with defaults
+const settings = {
+  tokenRefreshGracePeriod: process.env.TOKEN_REFRESH_GRACE_PERIOD ? 
+    parseInt(process.env.TOKEN_REFRESH_GRACE_PERIOD, 10) : 
+    60000, // Default: refresh 1 minute before expiry
+  requestTimeout: process.env.API_REQUEST_TIMEOUT ? 
+    parseInt(process.env.API_REQUEST_TIMEOUT, 10) : 
+    30000, // Default: 30 second timeout
+  retryAttempts: process.env.API_RETRY_ATTEMPTS ? 
+    parseInt(process.env.API_RETRY_ATTEMPTS, 10) : 
+    3, // Default: 3 retry attempts
+  retryDelay: process.env.API_RETRY_DELAY ? 
+    parseInt(process.env.API_RETRY_DELAY, 10) : 
+    1000 // Default: 1 second between retries
+};
+
+// Validate configuration with enhanced error messages
+const missingVars = [];
+if (!config.baseUrl) missingVars.push('HALOPSA_BASE_URL');
+if (!config.tenant) missingVars.push('HALOPSA_TENANT');
+if (!config.clientId) missingVars.push('HALOPSA_CLIENT_ID');
+if (!config.clientSecret) missingVars.push('HALOPSA_CLIENT_SECRET');
+
+if (missingVars.length > 0) {
+  console.error('[ERROR] Missing required configuration variables. Please check your .env file.');
+  console.error(`Missing variables: ${missingVars.join(', ')}`);
+  console.error('All are required for the HaloPSA API integration to function properly.');
   process.exit(1);
 }
 
+// Log startup information with redacted secrets
 console.error('[INFO] HaloPSA Direct API Implementation');
 console.error('---------------------------------------');
 console.error(`Base URL: ${config.baseUrl}`);
 console.error(`Tenant: ${config.tenant}`);
 console.error(`Client ID: ${config.clientId}`);
-console.error(`Client Secret: ${config.clientSecret.substring(0, 10)}...`);
+console.error(`Client Secret: ${config.clientSecret.substring(0, 3)}${'*'.repeat(config.clientSecret.length - 6)}${config.clientSecret.substring(config.clientSecret.length - 3)}`);
 console.error(`Scope: ${config.scope}`);
+console.error(`Token Refresh Grace Period: ${settings.tokenRefreshGracePeriod}ms`);
+console.error(`Request Timeout: ${settings.requestTimeout}ms`);
+console.error(`Retry Attempts: ${settings.retryAttempts}`);
 console.error('---------------------------------------');
 
+// Token cache with initialization
 let tokenCache = {
   accessToken: null,
-  expiresAt: 0
+  expiresAt: 0,
+  refreshCount: 0,
+  lastRefresh: null
 };
+
+// Create axios instance with default configuration
+const apiClient = axios.create({
+  timeout: settings.requestTimeout,
+  headers: {
+    'Accept': 'application/json',
+    'User-Agent': 'HaloPSA-Workflows-MCP/0.3.1'
+  }
+});
+
+// Add request interceptor for automatic token handling
+apiClient.interceptors.request.use(async (config) => {
+  // Skip token for token endpoint
+  if (config.url && config.url.includes('/auth/token')) {
+    return config;
+  }
+  
+  // Get a valid token
+  try {
+    const token = await getAuthToken();
+    config.headers.Authorization = `Bearer ${token}`;
+  } catch (error) {
+    console.error('[ERROR] Failed to get auth token for request:', error.message);
+    throw error;
+  }
+  
+  return config;
+});
+
+// Add response interceptor for error handling
+apiClient.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const originalRequest = error.config;
+    
+    // Don't retry if we've already retried or this is a token request
+    if (originalRequest._retry || (originalRequest.url && originalRequest.url.includes('/auth/token'))) {
+      return Promise.reject(error);
+    }
+    
+    // Handle token expiration (401 errors)
+    if (error.response && error.response.status === 401 && tokenCache.accessToken) {
+      console.error('[INFO] Token appears to be expired, invalidating cache and retrying...');
+      tokenCache.accessToken = null;
+      tokenCache.expiresAt = 0;
+      
+      originalRequest._retry = true;
+      
+      try {
+        const token = await getAuthToken();
+        originalRequest.headers.Authorization = `Bearer ${token}`;
+        return apiClient(originalRequest);
+      } catch (retryError) {
+        console.error('[ERROR] Failed to refresh token on 401 error:', retryError.message);
+        return Promise.reject(retryError);
+      }
+    }
+    
+    // Implement retry logic for server errors (5xx) and certain client errors
+    if (error.response && 
+        (error.response.status >= 500 || error.response.status === 429) && 
+        (!originalRequest._retryCount || originalRequest._retryCount < settings.retryAttempts)) {
+      
+      originalRequest._retryCount = (originalRequest._retryCount || 0) + 1;
+      
+      // Exponential backoff
+      const delay = settings.retryDelay * Math.pow(2, originalRequest._retryCount - 1);
+      console.error(`[INFO] Retry attempt ${originalRequest._retryCount}/${settings.retryAttempts} after ${delay}ms for ${originalRequest.method} ${originalRequest.url}`);
+      
+      return new Promise(resolve => {
+        setTimeout(() => resolve(apiClient(originalRequest)), delay);
+      });
+    }
+    
+    return Promise.reject(error);
+  }
+);
 
 /**
  * Get authentication token from HaloPSA

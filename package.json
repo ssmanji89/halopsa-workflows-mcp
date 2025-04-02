@@ -9,18 +9,21 @@
   },
   "scripts": {
     "build": "tsc",
-    "test": "node src/halopsa-direct.js",
+    "test": "node test/api.test.js",
     "start": "node halopsa-mcp.js",
-    "dev": "nodemon --watch src -e ts,js --exec npm run start",
-    "test:integration": "node test-mcp-server.js",
-    "test:all": "npm run test:integration && node test-fastmcp.js",
+    "dev": "nodemon --watch src -e js --exec npm run start",
+    "test:api": "node test/api.test.js",
+    "test:mcp": "node test/mcp.test.js",
+    "test:e2e": "node test/e2e.test.js",
+    "test:all": "npm run test:api && npm run test:mcp && npm run test:e2e",
     "prepublishOnly": "npm run build"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.8.0",
     "axios": "^1.6.5",
     "dotenv": "^16.3.1",
-    "fastmcp": "^1.20.5",
+    "express": "^4.18.2",
+    "fastmcp": "^1.21.0",
     "zod": "^3.24.2",
     "zod-to-json-schema": "^3.24.3"
   },

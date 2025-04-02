@@ -50,9 +50,15 @@ setTimeout(async () => {
     
     // Connect to the server with proper initialization parameters
     console.log('Connecting to server...');
-    await client.connect(transport, {
-      clientInfo: client.clientInfo,
-      protocolVersion: "1.0",
+    await client.connect(transport);
+    
+    // Initialize the client correctly
+    await client.initialize({
+      clientInfo: {
+        name: "HaloPSA Test Client",
+        version: "1.0.0"
+      },
+      protocolVersion: "1.0", 
       capabilities: capabilities
     });
     
