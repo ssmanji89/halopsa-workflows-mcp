@@ -88,7 +88,7 @@ export const logger = {
 export function installSafeConsole() {
   // Store original console methods
   const originalConsole = {
-    log: console.log,
+    log: console.error,
     info: console.info,
     warn: console.warn,
     error: console.error,
@@ -96,7 +96,7 @@ export function installSafeConsole() {
   };
 
   // Override with safe implementations
-  console.log = function(...args) {
+  console.error = function(...args) {
     console.error(...args);
   };
   
@@ -116,7 +116,7 @@ export function installSafeConsole() {
   
   // Return a function to restore original console if needed
   return function restoreConsole() {
-    console.log = originalConsole.log;
+    console.error = originalConsole.error;
     console.info = originalConsole.info;
     console.warn = originalConsole.warn;
     console.error = originalConsole.error;

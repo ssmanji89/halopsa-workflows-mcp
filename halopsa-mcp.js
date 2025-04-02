@@ -9,7 +9,7 @@
  */
 
 // Import and run the actual MCP server implementation
-import './src/halopsa-mcp.js';
+import './src/index.js';
 
 // This file serves as a simple entry point that delegates to the actual implementation
-// No additional code is needed here since the import will execute the src/halopsa-mcp.js file
+// No additional code is needed here since the import will execute the src/index.js file

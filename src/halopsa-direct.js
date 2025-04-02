@@ -1,6 +1,6 @@
 /**
  * Direct HaloPSA API Implementation
- * Based on successful curl commands
+ * Based on successful curl commands, with enhanced error handling and logging
  */
 import axios from 'axios';
 import dotenv from 'dotenv';
@@ -16,7 +16,7 @@ const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.join(__dirname, '..', '.env') });
 
 /**
- * HaloPSA API Configuration
+ * HaloPSA API Configuration with validation
  */
 const config = {
   baseUrl: process.env.HALOPSA_BASE_URL,
@@ -26,26 +26,133 @@ const config = {
   scope: process.env.HALOPSA_SCOPE || 'all'
 };
 
-// Validate configuration
-if (!config.baseUrl || !config.tenant || !config.clientId || !config.clientSecret) {
-  console.error('[ERROR] Missing required configuration. Please check your .env file.');
-  console.error('Required variables: HALOPSA_BASE_URL, HALOPSA_TENANT, HALOPSA_CLIENT_ID, HALOPSA_CLIENT_SECRET');
+// Configurable settings with defaults
+const settings = {
+  tokenRefreshGracePeriod: process.env.TOKEN_REFRESH_GRACE_PERIOD ? 
+    parseInt(process.env.TOKEN_REFRESH_GRACE_PERIOD, 10) : 
+    60000, // Default: refresh 1 minute before expiry
+  requestTimeout: process.env.API_REQUEST_TIMEOUT ? 
+    parseInt(process.env.API_REQUEST_TIMEOUT, 10) : 
+    30000, // Default: 30 second timeout
+  retryAttempts: process.env.API_RETRY_ATTEMPTS ? 
+    parseInt(process.env.API_RETRY_ATTEMPTS, 10) : 
+    3, // Default: 3 retry attempts
+  retryDelay: process.env.API_RETRY_DELAY ? 
+    parseInt(process.env.API_RETRY_DELAY, 10) : 
+    1000 // Default: 1 second between retries
+};
+
+// Validate configuration with enhanced error messages
+const missingVars = [];
+if (!config.baseUrl) missingVars.push('HALOPSA_BASE_URL');
+if (!config.tenant) missingVars.push('HALOPSA_TENANT');
+if (!config.clientId) missingVars.push('HALOPSA_CLIENT_ID');
+if (!config.clientSecret) missingVars.push('HALOPSA_CLIENT_SECRET');
+
+if (missingVars.length > 0) {
+  console.error('[ERROR] Missing required configuration variables. Please check your .env file.');
+  console.error(`Missing variables: ${missingVars.join(', ')}`);
+  console.error('All are required for the HaloPSA API integration to function properly.');
   process.exit(1);
 }
 
-console.log('[INFO] HaloPSA Direct API Implementation');
-console.log('---------------------------------------');
-console.log(`Base URL: ${config.baseUrl}`);
-console.log(`Tenant: ${config.tenant}`);
-console.log(`Client ID: ${config.clientId}`);
-console.log(`Client Secret: ${config.clientSecret.substring(0, 10)}...`);
-console.log(`Scope: ${config.scope}`);
-console.log('---------------------------------------');
+// Log startup information with redacted secrets
+console.error('[INFO] HaloPSA Direct API Implementation');
+console.error('---------------------------------------');
+console.error(`Base URL: ${config.baseUrl}`);
+console.error(`Tenant: ${config.tenant}`);
+console.error(`Client ID: ${config.clientId}`);
+console.error(`Client Secret: ${config.clientSecret.substring(0, 3)}${'*'.repeat(config.clientSecret.length - 6)}${config.clientSecret.substring(config.clientSecret.length - 3)}`);
+console.error(`Scope: ${config.scope}`);
+console.error(`Token Refresh Grace Period: ${settings.tokenRefreshGracePeriod}ms`);
+console.error(`Request Timeout: ${settings.requestTimeout}ms`);
+console.error(`Retry Attempts: ${settings.retryAttempts}`);
+console.error('---------------------------------------');
 
+// Token cache with initialization
 let tokenCache = {
   accessToken: null,
-  expiresAt: 0
+  expiresAt: 0,
+  refreshCount: 0,
+  lastRefresh: null
 };
+
+// Create axios instance with default configuration
+const apiClient = axios.create({
+  timeout: settings.requestTimeout,
+  headers: {
+    'Accept': 'application/json',
+    'User-Agent': 'HaloPSA-Workflows-MCP/0.3.1'
+  }
+});
+
+// Add request interceptor for automatic token handling
+apiClient.interceptors.request.use(async (config) => {
+  // Skip token for token endpoint
+  if (config.url && config.url.includes('/auth/token')) {
+    return config;
+  }
+  
+  // Get a valid token
+  try {
+    const token = await getAuthToken();
+    config.headers.Authorization = `Bearer ${token}`;
+  } catch (error) {
+    console.error('[ERROR] Failed to get auth token for request:', error.message);
+    throw error;
+  }
+  
+  return config;
+});
+
+// Add response interceptor for error handling
+apiClient.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const originalRequest = error.config;
+    
+    // Don't retry if we've already retried or this is a token request
+    if (originalRequest._retry || (originalRequest.url && originalRequest.url.includes('/auth/token'))) {
+      return Promise.reject(error);
+    }
+    
+    // Handle token expiration (401 errors)
+    if (error.response && error.response.status === 401 && tokenCache.accessToken) {
+      console.error('[INFO] Token appears to be expired, invalidating cache and retrying...');
+      tokenCache.accessToken = null;
+      tokenCache.expiresAt = 0;
+      
+      originalRequest._retry = true;
+      
+      try {
+        const token = await getAuthToken();
+        originalRequest.headers.Authorization = `Bearer ${token}`;
+        return apiClient(originalRequest);
+      } catch (retryError) {
+        console.error('[ERROR] Failed to refresh token on 401 error:', retryError.message);
+        return Promise.reject(retryError);
+      }
+    }
+    
+    // Implement retry logic for server errors (5xx) and certain client errors
+    if (error.response && 
+        (error.response.status >= 500 || error.response.status === 429) && 
+        (!originalRequest._retryCount || originalRequest._retryCount < settings.retryAttempts)) {
+      
+      originalRequest._retryCount = (originalRequest._retryCount || 0) + 1;
+      
+      // Exponential backoff
+      const delay = settings.retryDelay * Math.pow(2, originalRequest._retryCount - 1);
+      console.error(`[INFO] Retry attempt ${originalRequest._retryCount}/${settings.retryAttempts} after ${delay}ms for ${originalRequest.method} ${originalRequest.url}`);
+      
+      return new Promise(resolve => {
+        setTimeout(() => resolve(apiClient(originalRequest)), delay);
+      });
+    }
+    
+    return Promise.reject(error);
+  }
+);
 
 /**
  * Get authentication token from HaloPSA
@@ -54,15 +161,17 @@ let tokenCache = {
 async function getAuthToken() {
   // Check if we have a valid cached token
   if (tokenCache.accessToken && tokenCache.expiresAt > Date.now()) {
-    console.log('[INFO] Using cached token');
+    console.error('[INFO] Using cached token');
     return tokenCache.accessToken;
   }
 
-  console.log('[INFO] Getting new auth token...');
+  console.error('[INFO] Getting new auth token...');
   try {
     // Prepare the token URL with tenant parameter
-    const tokenUrl = `${config.baseUrl}/auth/token?tenant=${config.tenant}`;
-    console.log(`[DEBUG] Token URL: ${tokenUrl}`);
+    // HaloPSA auth endpoints are typically at baseUrl/auth, not baseUrl/api/auth
+    const baseUrlWithoutApi = config.baseUrl.replace(/\/api$/, '');
+    const tokenUrl = `${baseUrlWithoutApi}/auth/token?tenant=${config.tenant}`;
+    console.error(`[DEBUG] Token URL: ${tokenUrl}`);
 
     // Prepare form data exactly like successful curl command
     const formData = new URLSearchParams();
@@ -87,17 +196,35 @@ async function getAuthToken() {
       expiresAt: Date.now() + (expires_in * 1000) - 60000 // Buffer 1 minute
     };
 
-    console.log(`[INFO] Successfully obtained auth token, expires in ${expires_in} seconds`);
+    console.error(`[INFO] Successfully obtained auth token, expires in ${expires_in} seconds`);
     return access_token;
   } catch (error) {
     console.error('[ERROR] Failed to get auth token:');
     if (error.response) {
       console.error(`Status: ${error.response.status}`);
-      console.error('Response:', error.response.data);
+      console.error('Response:', JSON.stringify(error.response.data, null, 2));
+      console.error(`URL: ${error.response.config.url}`);
+      console.error(`Method: ${error.response.config.method}`);
+      console.error(`Headers: ${JSON.stringify(error.response.config.headers, null, 2)}`);
+      
+      // Remove sensitive info for logging
+      const sanitizedData = { ...error.response.config.data };
+      if (sanitizedData && typeof sanitizedData === 'string') {
+        const formData = new URLSearchParams(sanitizedData);
+        formData.set('client_secret', '***REDACTED***');
+        console.error(`Request data: ${formData.toString()}`);
+      }
+      
+      throw new Error(`Authentication failed: ${error.response.status} - ${JSON.stringify(error.response.data)}`);
+    } else if (error.request) {
+      console.error('No response received from server');
+      console.error('Request details:', error.request);
+      throw new Error(`Authentication failed: No response from server - ${error.message}`);
     } else {
-      console.error(error.message);
+      console.error('Error creating request:', error.message);
+      console.error('Stack trace:', error.stack);
+      throw new Error(`Authentication failed: Request error - ${error.message}`);
     }
-    throw new Error(`Authentication failed: ${error.message}`);
   }
 }
 
@@ -113,7 +240,7 @@ async function getWorkflows(includeInactive = false) {
 
     // Prepare API endpoint
     const apiEndpoint = `${config.baseUrl}/api/Workflow`;
-    console.log(`[DEBUG] API Endpoint: ${apiEndpoint}`);
+    console.error(`[DEBUG] API Endpoint: ${apiEndpoint}`);
 
     // Query parameters
     const params = {};
@@ -130,7 +257,7 @@ async function getWorkflows(includeInactive = false) {
       params
     });
 
-    console.log(`[INFO] Retrieved ${response.data.length} workflows`);
+    console.error(`[INFO] Retrieved ${response.data.length} workflows`);
     return response.data;
   } catch (error) {
     console.error('[ERROR] Failed to get workflows:');
@@ -156,7 +283,7 @@ async function getWorkflowSteps(includeCriteriaInfo = false) {
 
     // Prepare API endpoint
     const apiEndpoint = `${config.baseUrl}/api/WorkflowStep`;
-    console.log(`[DEBUG] API Endpoint: ${apiEndpoint}`);
+    console.error(`[DEBUG] API Endpoint: ${apiEndpoint}`);
 
     // Query parameters
     const params = {};
@@ -200,7 +327,7 @@ async function getWorkflow(id, includeDetails = false) {
 
     // Prepare API endpoint
     const apiEndpoint = `${config.baseUrl}/api/Workflow/${id}`;
-    console.log(`[DEBUG] API Endpoint: ${apiEndpoint}`);
+    console.error(`[DEBUG] API Endpoint: ${apiEndpoint}`);
 
     // Query parameters
     const params = {};
@@ -278,7 +405,7 @@ async function createWorkflows(workflows) {
 
     // Prepare API endpoint
     const apiEndpoint = `${config.baseUrl}/api/Workflow`;
-    console.log(`[DEBUG] API Endpoint: ${apiEndpoint}`);
+    console.error(`[DEBUG] API Endpoint: ${apiEndpoint}`);
 
     // Make API request
     const response = await axios.post(apiEndpoint, workflows, {
@@ -315,37 +442,37 @@ export {
 
 // If this file is run directly, test the functions
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  console.log('[INFO] Running direct test...');
+  console.error('[INFO] Running direct test...');
   
   (async () => {
     try {
       // Test getting workflows
-      console.log('\n[TEST] Getting workflows...');
+      console.error('\n[TEST] Getting workflows...');
       const workflows = await getWorkflows();
-      console.log(`Retrieved ${workflows.length} workflows`);
+      console.error(`Retrieved ${workflows.length} workflows`);
       
       if (workflows.length > 0) {
-        console.log('First workflow:', workflows[0]);
+        console.error('First workflow:', workflows[0]);
         
         // Test getting workflow details
-        console.log(`\n[TEST] Getting workflow ${workflows[0].id} details...`);
+        console.error(`\n[TEST] Getting workflow ${workflows[0].id} details...`);
         const workflow = await getWorkflow(workflows[0].id, true);
-        console.log('Workflow details:', workflow);
+        console.error('Workflow details:', workflow);
       }
       
       // Test getting workflow steps
-      console.log('\n[TEST] Getting workflow steps...');
+      console.error('\n[TEST] Getting workflow steps...');
       try {
         const steps = await getWorkflowSteps();
-        console.log(`Retrieved ${steps.length} workflow steps`);
+        console.error(`Retrieved ${steps.length} workflow steps`);
         if (steps.length > 0) {
-          console.log('First workflow step:', steps[0]);
+          console.error('First workflow step:', steps[0]);
         }
       } catch (error) {
-        console.log('Workflow steps not available or accessible');
+        console.error('Workflow steps not available or accessible');
       }
       
-      console.log('\n[INFO] Test completed successfully!');
+      console.error('\n[INFO] Test completed successfully!');
     } catch (error) {
       console.error('[ERROR] Test failed:', error.message);
     }

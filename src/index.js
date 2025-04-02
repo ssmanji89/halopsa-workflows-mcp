@@ -1,25 +1,11 @@
 /**
- * HaloPSA Workflows MCP Server
- * Main entry point for importing functionality
+ * HaloPSA Workflows MCP
+ * Main entry point
  */
+import server from './server/index.js';
 
-// Export direct API implementation
-export {
-  getAuthToken,
-  getWorkflows,
-  getWorkflowSteps,
-  getWorkflow,
-  deleteWorkflow,
-  createWorkflows
-} from './halopsa-direct.js';
-
-// Export MCP compatibility helpers
-export {
-  createCompatibleMcpServer,
-  createToolParameters,
-  wrapToolHandler,
-  PROTOCOL_VERSIONS
-} from './mcp-compatibility.js';
-
-// Export any other utilities or types as needed
-// Add more exports as the project evolves
+// Start the server
+server.start().catch(error => {
+  console.error(`Fatal error: ${error.message}`);
+  process.exit(1);
+});
